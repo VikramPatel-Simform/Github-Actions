@@ -23,7 +23,7 @@ jobs:
             fetch-depth: 5  # Fetch last 5 commits for workflow_dispatch
 
         - name: Send notification to Discord
-          uses: VikramPatel-Simform/Github-Actions/.github/actions/discord-notify@main
+          uses: VikramPatel-Simform/Github-Actions/.github/action/discord-notify@main
           with:
             job_status: success
             environment: ${{ github.ref_name }}

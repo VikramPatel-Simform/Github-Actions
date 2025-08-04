@@ -51,7 +51,7 @@ runs:
 
         if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
           COMMITS=$(git log --oneline -5 --pretty=format:"• [%h](https://github.com/$REPO/commit/%H) %s" 2>/dev/null || echo "• Unable to fetch commits")
-          DESCRIPTION="**$WORKFLOW_NAME:** Manually triggered workflow [#$RUN_ID]($RUN_URL) on branch **$BRANCH** by $ACTOR has $STATUS_TEXT\n\n**Recent Commits:**\n$COMMITS"
+          DESCRIPTION="**$WORKFLOW_NAME:** Manually triggered workflow [#$RUN_ID]($RUN_URL) on branch **$BRANCH** by $ACTOR has $STATUS_TEXT  **Recent Commits:** $COMMITS"
 
         elif [[ "$EVENT_NAME" == "push" ]]; then
           COMMIT_MSG=$(git log -1 --pretty=%B || echo "")
@@ -59,7 +59,7 @@ runs:
             echo "Not a merge commit. Skipping Discord notification."
             exit 0
           fi
-          DESCRIPTION="**$WORKFLOW_NAME:** Merge commit pushed to **$BRANCH** by $ACTOR has $STATUS_TEXT\n\n**Commit Message:** $COMMIT_MSG\n[View Run]($RUN_URL)"
+          DESCRIPTION="**$WORKFLOW_NAME:** Merge commit pushed to **$BRANCH** by $ACTOR has $STATUS_TEXT  **Commit Message:** $COMMIT_MSG [View Run]($RUN_URL)"
         else
           echo "Unsupported event: $EVENT_NAME"
           exit 0

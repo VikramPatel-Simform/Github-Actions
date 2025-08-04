@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Send Discord Notification
-        uses: ./.github/actions/discord-notify
+        uses: VikramPatel-Simform/Github-Actions/.github/action/discord-notify@main
         with:
           webhook_url: ${{ secrets.discord_webhook }}
           environment: ${{ github.ref_name }}

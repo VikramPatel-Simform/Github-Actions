@@ -1,0 +1,98 @@
+name: "Discord Notify (Auto Status)"
+description: "Build and send a Discord message using curl with dynamic status and safe JSON"
+
+inputs:
+  webhook_url:
+    description: "Discord webhook URL"
+    required: true
+  environment:
+    description: "Deployment environment name (e.g., int)"
+    required: true
+  job_status:
+    description: "Status of the job: success or failure"
+    required: true
+  event_name:
+    description: "GitHub event name (e.g., push, pull_request, workflow_dispatch)"
+    required: true
+  head_ref:
+    description: "Head branch reference (for pull requests)"
+    required: false
+    default: ""
+  base_ref:
+    description: "Base branch reference (for pull requests)"
+    required: false
+    default: ""
+  debug:
+    description: "Enable debug logging"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Send Discord Notification
+      shell: bash
+      run: |
+        set -e
+
+        WEBHOOK_URL="${{ inputs.webhook_url }}"
+        ENVIRONMENT="${{ inputs.environment }}"
+        JOB_STATUS="${{ inputs.job_status }}"
+        EVENT_NAME="${{ inputs.event_name }}"
+        HEAD_REF="${{ inputs.head_ref }}"
+        BASE_REF="${{ inputs.base_ref }}"
+
+        BRANCH="${GITHUB_REF_NAME}"
+        REPO="${GITHUB_REPOSITORY}"
+        RUN_ID="${GITHUB_RUN_ID}"
+        RUN_URL="https://github.com/${REPO}/actions/runs/${RUN_ID}"
+        ACTOR="${GITHUB_ACTOR}"
+        WORKFLOW_NAME="${GITHUB_WORKFLOW}"
+        TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+
+        if [[ "$JOB_STATUS" == "success" ]]; then
+          STATUS_TEXT="succeeded"
+          COLOR=3066993
+        else
+          STATUS_TEXT="failed"
+          COLOR=15158332
+        fi
+
+        if [[ "$EVENT_NAME" == "pull_request" ]]; then
+          DESCRIPTION="**$WORKFLOW_NAME:** Pipeline [#$RUN_ID]($RUN_URL) for PR from **$HEAD_REF** to **$BASE_REF** by $ACTOR has $STATUS_TEXT"
+
+        elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+          COMMITS=$(git log --oneline -5 --pretty=format:"• [%h](https://github.com/$REPO/commit/%H) %s" 2>/dev/null || echo "• Unable to fetch commits")
+          DESCRIPTION="**$WORKFLOW_NAME:** Pipeline [#$RUN_ID]($RUN_URL) of branch **$BRANCH** by $ACTOR has $STATUS_TEXT\n\n**Recent Commits:**\n$COMMITS"
+
+        else
+          DESCRIPTION="**$WORKFLOW_NAME:** Pipeline [#$RUN_ID]($RUN_URL) of branch **$BRANCH** by $ACTOR has $STATUS_TEXT"
+        fi
+
+        # Create payload using jq
+        jq -n --arg actor "$ACTOR" \
+              --arg desc "$DESCRIPTION" \
+              --arg time "$TIMESTAMP" \
+              --argjson color "$COLOR" \
+              --arg icon "https://github.com/$ACTOR.png" \
+              '{
+                embeds: [
+                  {
+                    color: $color,
+                    author: {
+                      name: $actor,
+                      icon_url: $icon
+                    },
+                    description: $desc,
+                    timestamp: $time,
+                    footer: {
+                      text: "Github Alerts APP"
+                    }
+                  }
+                ]
+              }' > payload.json
+
+        curl -s -X POST -H "Content-Type: application/json" \
+          --data @payload.json "$WEBHOOK_URL"
+
+        rm -f payload.json

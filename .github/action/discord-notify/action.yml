@@ -42,18 +42,29 @@ runs:
         TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
 
         if [[ "$JOB_STATUS" == "success" ]]; then
-          STATUS_TEXT="succeeded"
+          STATUS_TEXT="**succeeded**"
           COLOR=3066993
         else
-          STATUS_TEXT="failed"
+          STATUS_TEXT="**failed**"
           COLOR=15158332
         fi
 
         if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
           COMMITS=$(git log --oneline -5 --pretty=format:"• [%h](https://github.com/$REPO/commit/%H) %s" 2>/dev/null || echo "• Unable to fetch commits")
-          DESCRIPTION="**$WORKFLOW_NAME:** Manually triggered workflow [#$RUN_ID]($RUN_URL) on branch **$BRANCH** by $ACTOR has $STATUS_TEXT \
-           **Recent Commits:** \
-           $COMMITS"
+
+          DESCRIPTION=$(cat <<EOF
+        **Workflow:** \`$WORKFLOW_NAME\`  
+        **Triggered by:** \`Manual (workflow_dispatch)\`  
+        **Environment:** \`$ENVIRONMENT\`  
+        **Actor:** [$ACTOR](https://github.com/$ACTOR)  
+        **Branch:** \`$BRANCH\`  
+        **Status:** $STATUS_TEXT  
+        [View Run]($RUN_URL)
+
+        **Recent Commits:**  
+        $COMMITS
+        EOF
+        )
 
         elif [[ "$EVENT_NAME" == "push" ]]; then
           COMMIT_MSG=$(git log -1 --pretty=%B || echo "")
@@ -61,12 +72,29 @@ runs:
             echo "Not a merge commit. Skipping Discord notification."
             exit 0
           fi
-          DESCRIPTION="**$WORKFLOW_NAME:** Merge commit pushed to **$BRANCH** by $ACTOR has $STATUS_TEXT  **Commit Message:** $COMMIT_MSG [View Run]($RUN_URL)"
+
+          DESCRIPTION=$(cat <<EOF
+        **Workflow:** \`$WORKFLOW_NAME\`  
+        **Triggered by:** \`Merge Commit\`  
+        **Environment:** \`$ENVIRONMENT\`  
+        **Actor:** [$ACTOR](https://github.com/$ACTOR)  
+        **Branch:** \`$BRANCH\`  
+        **Status:** $STATUS_TEXT  
+        [View Run]($RUN_URL)
+
+        **Commit Message:**  
+        \`\`\`
+        $COMMIT_MSG
+        \`\`\`
+        EOF
+        )
+
         else
           echo "Unsupported event: $EVENT_NAME"
           exit 0
         fi
 
+        # Create JSON payload using jq
         jq -n --arg actor "$ACTOR" \
               --arg desc "$DESCRIPTION" \
               --arg time "$TIMESTAMP" \
@@ -83,7 +111,7 @@ runs:
                     description: $desc,
                     timestamp: $time,
                     footer: {
-                      text: "Github Alerts APP"
+                      text: "GitHub Alerts APP"
                     }
                   }
                 ]
@@ -93,3 +121,4 @@ runs:
           --data @payload.json "$WEBHOOK_URL"
 
         rm -f payload.json
+

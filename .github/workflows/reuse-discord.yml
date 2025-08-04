@@ -1,33 +1,21 @@
-name: Reusable Workflow Frontend Deploy
-
-permissions:
-  id-token: write
-  packages: read
-  contents: read
+name: Reusable Merge & Manual Discord Notify
 
 on:
   workflow_call:
     secrets:
       discord_webhook:
         required: true
-    
-jobs:
-    notify:
-        name: Notification to Discord
-        runs-on: ubuntu-latest
-        if: always()
-        timeout-minutes: 2
-        steps:
-        - uses: actions/checkout@v4
-          with:
-            fetch-depth: 5  # Fetch last 5 commits for workflow_dispatch
 
-        - name: Send notification to Discord
-          uses: VikramPatel-Simform/Github-Actions/.github/action/discord-notify@main
-          with:
-            job_status: success
-            environment: ${{ github.ref_name }}
-            webhook_url: ${{ secrets.discord_webhook }}
-            event_name: ${{ github.event_name }}
-            head_ref: ${{ github.head_ref }}
-            base_ref: ${{ github.base_ref }}
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send Discord Notification
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook_url: ${{ secrets.discord_webhook }}
+          environment: ${{ github.ref_name }}
+          job_status: ${{ job.status }}
+          event_name: ${{ github.event_name }}

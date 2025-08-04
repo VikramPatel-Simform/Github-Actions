@@ -1,27 +1,19 @@
-name: "Discord Notify (Auto Status)"
-description: "Build and send a Discord message using curl with dynamic status and safe JSON"
+name: "Discord Notify (Merge Commit or Manual Trigger)"
+description: "Send a Discord message when merge commit is pushed or workflow is manually triggered"
 
 inputs:
   webhook_url:
     description: "Discord webhook URL"
     required: true
   environment:
-    description: "Deployment environment name (e.g., int)"
+    description: "Deployment environment name (e.g., int, prod)"
     required: true
   job_status:
     description: "Status of the job: success or failure"
     required: true
   event_name:
-    description: "GitHub event name (e.g., push, pull_request, workflow_dispatch)"
+    description: "GitHub event name (e.g., push, workflow_dispatch)"
     required: true
-  head_ref:
-    description: "Head branch reference (for pull requests)"
-    required: false
-    default: ""
-  base_ref:
-    description: "Base branch reference (for pull requests)"
-    required: false
-    default: ""
   debug:
     description: "Enable debug logging"
     required: false
@@ -39,8 +31,7 @@ runs:
         ENVIRONMENT="${{ inputs.environment }}"
         JOB_STATUS="${{ inputs.job_status }}"
         EVENT_NAME="${{ inputs.event_name }}"
-        HEAD_REF="${{ inputs.head_ref }}"
-        BASE_REF="${{ inputs.base_ref }}"
+        DEBUG="${{ inputs.debug }}"
 
         BRANCH="${GITHUB_REF_NAME}"
         REPO="${GITHUB_REPOSITORY}"
@@ -58,18 +49,22 @@ runs:
           COLOR=15158332
         fi
 
-        if [[ "$EVENT_NAME" == "pull_request" ]]; then
-          DESCRIPTION="**$WORKFLOW_NAME:** Pipeline [#$RUN_ID]($RUN_URL) for PR from **$HEAD_REF** to **$BASE_REF** by $ACTOR has $STATUS_TEXT"
-
-        elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+        if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
           COMMITS=$(git log --oneline -5 --pretty=format:"• [%h](https://github.com/$REPO/commit/%H) %s" 2>/dev/null || echo "• Unable to fetch commits")
-          DESCRIPTION="**$WORKFLOW_NAME:** Pipeline [#$RUN_ID]($RUN_URL) of branch **$BRANCH** by $ACTOR has $STATUS_TEXT\n\n**Recent Commits:**\n$COMMITS"
+          DESCRIPTION="**$WORKFLOW_NAME:** Manually triggered workflow [#$RUN_ID]($RUN_URL) on branch **$BRANCH** by $ACTOR has $STATUS_TEXT\n\n**Recent Commits:**\n$COMMITS"
 
+        elif [[ "$EVENT_NAME" == "push" ]]; then
+          COMMIT_MSG=$(git log -1 --pretty=%B || echo "")
+          if [[ "$COMMIT_MSG" != Merge\ pull\ request* ]]; then
+            echo "Not a merge commit. Skipping Discord notification."
+            exit 0
+          fi
+          DESCRIPTION="**$WORKFLOW_NAME:** Merge commit pushed to **$BRANCH** by $ACTOR has $STATUS_TEXT\n\n**Commit Message:** $COMMIT_MSG\n[View Run]($RUN_URL)"
         else
-          DESCRIPTION="**$WORKFLOW_NAME:** Pipeline [#$RUN_ID]($RUN_URL) of branch **$BRANCH** by $ACTOR has $STATUS_TEXT"
+          echo "Unsupported event: $EVENT_NAME"
+          exit 0
         fi
 
-        # Create payload using jq
         jq -n --arg actor "$ACTOR" \
               --arg desc "$DESCRIPTION" \
               --arg time "$TIMESTAMP" \
